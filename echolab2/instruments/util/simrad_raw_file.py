@@ -107,6 +107,7 @@ class RawSimradFile(BufferedReader):
                       'DEP': simrad_parsers.SimradDepthParser(),
                       'XML': simrad_parsers.SimradXMLParser(),
                       'FIL': simrad_parsers.SimradFILParser(),
+                      'MRU1': simrad_parsers.SimradMRU1Parser(),
                       'MRU': simrad_parsers.SimradMRUParser(),
                       'IDX': simrad_parsers.SimradIDXParser(),
                       }
@@ -351,6 +352,14 @@ class RawSimradFile(BufferedReader):
         #  07/17/22 - RHT - Modified to partially parse unknown datagram types
 
         dgram_type = raw_datagram_string[:3].decode('iso-8859-1')
+
+        # 03/13/23 - OYV - Use separate parser for MRU0 and MRU1
+        # Needs handling here since it is the 4th character that sepreates them
+        if dgram_type == "MRU":
+            full_mru_type = raw_datagram_string[:4].decode('iso-8859-1')
+            if full_mru_type in self.DGRAM_TYPE_KEY.keys() : 
+                dgram_type = full_mru_type
+
         try:
             parser = self.DGRAM_TYPE_KEY[dgram_type]
             nice_dgram = parser.from_string(raw_datagram_string, bytes_read)

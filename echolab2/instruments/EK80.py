@@ -41,6 +41,7 @@ from .util.simrad_calibration import calibration
 from .util.simrad_raw_file import RawSimradFile, SimradEOF
 from .util.nmea_data import nmea_data
 from .util.motion_data import motion_data
+from .util.mru1_motion_data import mru1_motion_data
 from .util.annotation_data import annotation_data
 from .util import simrad_signal_proc
 from .util import date_conversion
@@ -231,6 +232,11 @@ class EK80(object):
         #  contain data from the MRU datagrams contained in the raw file.
         #  This object has methods to extract and interpolate the motion data.
         self.motion_data = motion_data()
+
+
+        #  mru1_motion_data is equivalent to motion_data except that it contains 
+        # latitude and longitude as well
+        self.mru1_motion_data = mru1_motion_data()
 
         # annotations stores the contents of the TAG0 aka "annotation"
         # datagrams.
@@ -994,9 +1000,25 @@ class EK80(object):
         # MRU datagrams contain vessel motion data
         elif new_datagram['type'].startswith('MRU'):
             # append this motion datagram to the motion_data object
-            self.motion_data.add_datagram(new_datagram['timestamp'],
-                    new_datagram['heave'], new_datagram['pitch'],
-                    new_datagram['roll'], new_datagram['heading'])
+            if new_datagram['type'].startswith('MRU1'):
+                self.mru1_motion_data.add_datagram(new_datagram['timestamp'],
+                        new_datagram['heave'], new_datagram['pitch'],
+                        new_datagram['roll'], new_datagram['heading'],
+                        new_datagram['latitude'], new_datagram['longitude'])
+                
+                # # Create fake GLL NMEA message from MRU1 data
+                # # e.g. $GPGGA,4911.405,N,12311.152,W,225444,A,D,*1D
+                # utcFix = 25444 # Fix taken at 22:54:44 UTC
+                # activeState = 'A' # Data state [A – Active; V – Void]
+                # mode = 'D' #Mode indicator [A – Autonomous mode; D – Differential mode; E – Estimated (dead reckoning) mode; M – Manual input mode; S – Simulator mode; N – Data not valid]
+                # mru1_as_fake_nmea = "$GPGGA," + str(new_datagram['latitude']) + "N," + str(new_datagram['latitude']) + "W,"
+                # self.nmea_data.add_datagram(new_datagram['timestamp'],
+                #     mru1_as_fake_nmea)
+                
+            else :
+                self.motion_data.add_datagram(new_datagram['timestamp'],
+                        new_datagram['heave'], new_datagram['pitch'],
+                        new_datagram['roll'], new_datagram['heading'])                
 
         # BOT datagrams contain bottom detections
         elif new_datagram['type'].startswith('BOT'):
@@ -1383,6 +1405,7 @@ class EK80(object):
                            'FIL': simrad_parsers.SimradFILParser(),
                            'TAG': simrad_parsers.SimradAnnotationParser(),
                            'NME': simrad_parsers.SimradNMEAParser(),
+                           'MRU1': simrad_parsers.SimradMRU1Parser(),
                            'MRU': simrad_parsers.SimradMRUParser(),
                            'XML': simrad_parsers.SimradXMLParser()}
 
