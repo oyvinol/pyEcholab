@@ -694,12 +694,9 @@ class SimradMRU1Parser(_SimradDatagramParser):
     '''
 
     def __init__(self):
-        headers = {0: [('type', '4s'),
+        headers = {0: [('type', '4s'), # dummy version here since MRU1 has to be version 1
                        ('low_date', 'L'),
                        ('high_date', 'L'),
-                       ('roll', 'f'),
-                       ('pitch', 'f'),
-                       ('heading', 'f'),
                       ],
                     1: [
                     ('type', '4s'),  #Somehow this is part of a header added before the datagram
@@ -742,13 +739,6 @@ class SimradMRU1Parser(_SimradDatagramParser):
 
         _SimradDatagramParser.__init__(self, "MRU1", headers)
 
-    def from_string(self, raw_string, bytes_read):
-
-        header = raw_string[:5]
-        header = header.decode()
-        id_, version = self.validate_data_header(header)
-        return self._unpack_contents(raw_string, bytes_read, version=version)
-    
     def _unpack_contents(self, raw_string, bytes_read, version):
         '''
         Unpacks the data in raw_string into dictionary containing MRU1 data

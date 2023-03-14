@@ -998,27 +998,46 @@ class EK80(object):
                     new_datagram['text'])
 
         # MRU datagrams contain vessel motion data
-        elif new_datagram['type'].startswith('MRU'):
-            # append this motion datagram to the motion_data object
-            if new_datagram['type'].startswith('MRU1'):
+        elif new_datagram['type'].startswith('MRU1'):
+            try:
                 self.mru1_motion_data.add_datagram(new_datagram['timestamp'],
                         new_datagram['heave'], new_datagram['pitch'],
                         new_datagram['roll'], new_datagram['heading'],
                         new_datagram['latitude'], new_datagram['longitude'])
                 
-                # # Create fake GLL NMEA message from MRU1 data
-                # # e.g. $GPGGA,4911.405,N,12311.152,W,225444,A,D,*1D
-                # utcFix = 25444 # Fix taken at 22:54:44 UTC
-                # activeState = 'A' # Data state [A – Active; V – Void]
-                # mode = 'D' #Mode indicator [A – Autonomous mode; D – Differential mode; E – Estimated (dead reckoning) mode; M – Manual input mode; S – Simulator mode; N – Data not valid]
-                # mru1_as_fake_nmea = "$GPGGA," + str(new_datagram['latitude']) + "N," + str(new_datagram['latitude']) + "W,"
-                # self.nmea_data.add_datagram(new_datagram['timestamp'],
-                #     mru1_as_fake_nmea)
-                
-            else :
-                self.motion_data.add_datagram(new_datagram['timestamp'],
-                        new_datagram['heave'], new_datagram['pitch'],
-                        new_datagram['roll'], new_datagram['heading'])                
+                # Create fake GLL NMEA message from MRU1 data
+                # $GPGLL,5109.0262317,N,11401.8407304,W,202725.00,A,D*79
+
+                # Convert decimal to horrific DDDmm.mm format
+                latitudeDecimal = float(new_datagram['latitude'])
+                latLetter = 'N'
+                if latitudeDecimal < 0.0:
+                    latLetter = 'S'
+                latitudeDD = int(latitudeDecimal)
+                latitudemm = (latitudeDecimal - latitudeDD)*60.0
+                latString = '{0:02d}'.format(latitudeDD)
+                latString += "{0:2.2f}".format(latitudemm)
+
+                longitudeDecimal = float(new_datagram['longitude']) 
+                longLetter = 'E'
+                if longitudeDecimal < 0.0:
+                    longLetter = 'W'
+                longitudeDDD = int(longitudeDecimal)
+                longitudemm = (longitudeDecimal - longitudeDDD)*60.0
+                longString = '{0:03d}'.format(longitudeDDD) 
+                longString += "{0:2.2f}".format(longitudemm)
+
+                mru1_as_fake_nmea = "$GPGLL," + latString + "," + latLetter + "," + longString + "," + longLetter + ",202725.00,A,D"
+                self.nmea_data.add_datagram(new_datagram['timestamp'],mru1_as_fake_nmea)
+            except: 
+                e = sys.exc_info()[0]
+                print("ERROR when parsing MRU1 and/or convert it to NMEA: " + str(e))                
+
+        elif new_datagram['type'].startswith('MRU'):
+            # append this motion datagram to the motion_data object
+            self.motion_data.add_datagram(new_datagram['timestamp'],
+                    new_datagram['heave'], new_datagram['pitch'],
+                    new_datagram['roll'], new_datagram['heading'])                
 
         # BOT datagrams contain bottom detections
         elif new_datagram['type'].startswith('BOT'):
