@@ -41,6 +41,7 @@ from .util.simrad_calibration import calibration
 from .util.simrad_raw_file import RawSimradFile, SimradEOF
 from .util.nmea_data import nmea_data
 from .util.motion_data import motion_data
+from .util.mru1_motion_data import mru1_motion_data
 from .util.annotation_data import annotation_data
 from .util import simrad_signal_proc
 from .util import date_conversion
@@ -231,6 +232,11 @@ class EK80(object):
         #  contain data from the MRU datagrams contained in the raw file.
         #  This object has methods to extract and interpolate the motion data.
         self.motion_data = motion_data()
+
+
+        #  mru1_motion_data is equivalent to motion_data except that it contains 
+        # latitude and longitude as well
+        self.mru1_motion_data = mru1_motion_data()
 
         # annotations stores the contents of the TAG0 aka "annotation"
         # datagrams.
@@ -992,11 +998,46 @@ class EK80(object):
                     new_datagram['text'])
 
         # MRU datagrams contain vessel motion data
+        elif new_datagram['type'].startswith('MRU1'):
+            try:
+                self.mru1_motion_data.add_datagram(new_datagram['timestamp'],
+                        new_datagram['heave'], new_datagram['pitch'],
+                        new_datagram['roll'], new_datagram['heading'],
+                        new_datagram['latitude'], new_datagram['longitude'])
+                
+                # Create fake GLL NMEA message from MRU1 data
+                # $GPGLL,5109.0262317,N,11401.8407304,W,202725.00,A,D*79
+
+                # Convert decimal to horrific DDDmm.mm format
+                latitudeDecimal = float(new_datagram['latitude'])
+                latLetter = 'N'
+                if latitudeDecimal < 0.0:
+                    latLetter = 'S'
+                latitudeDD = int(latitudeDecimal)
+                latitudemm = (latitudeDecimal - latitudeDD)*60.0
+                latString = '{0:02d}'.format(latitudeDD)
+                latString += "{0:2.2f}".format(latitudemm)
+
+                longitudeDecimal = float(new_datagram['longitude']) 
+                longLetter = 'E'
+                if longitudeDecimal < 0.0:
+                    longLetter = 'W'
+                longitudeDDD = int(longitudeDecimal)
+                longitudemm = (longitudeDecimal - longitudeDDD)*60.0
+                longString = '{0:03d}'.format(longitudeDDD) 
+                longString += "{0:2.2f}".format(longitudemm)
+
+                mru1_as_fake_nmea = "$GPGLL," + latString + "," + latLetter + "," + longString + "," + longLetter + ",202725.00,A,D"
+                self.nmea_data.add_datagram(new_datagram['timestamp'],mru1_as_fake_nmea)
+            except: 
+                e = sys.exc_info()[0]
+                print("ERROR when parsing MRU1 and/or convert it to NMEA: " + str(e))                
+
         elif new_datagram['type'].startswith('MRU'):
             # append this motion datagram to the motion_data object
             self.motion_data.add_datagram(new_datagram['timestamp'],
                     new_datagram['heave'], new_datagram['pitch'],
-                    new_datagram['roll'], new_datagram['heading'])
+                    new_datagram['roll'], new_datagram['heading'])                
 
         # BOT datagrams contain bottom detections
         elif new_datagram['type'].startswith('BOT'):
@@ -1383,6 +1424,7 @@ class EK80(object):
                            'FIL': simrad_parsers.SimradFILParser(),
                            'TAG': simrad_parsers.SimradAnnotationParser(),
                            'NME': simrad_parsers.SimradNMEAParser(),
+                           'MRU1': simrad_parsers.SimradMRU1Parser(),
                            'MRU': simrad_parsers.SimradMRUParser(),
                            'XML': simrad_parsers.SimradXMLParser()}
 

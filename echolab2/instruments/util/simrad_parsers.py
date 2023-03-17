@@ -43,7 +43,7 @@ from .date_conversion import nt_to_unix
 
 __all__ = ['SimradNMEAParser', 'SimradDepthParser', 'SimradBottomParser',
             'SimradAnnotationParser', 'SimradConfigParser', 'SimradRawParser',
-            'SimradFILParser', 'SimradXMLParser', 'SimradMRUParser']
+            'SimradFILParser', 'SimradXMLParser', 'SimradMRUParser','SimradMRU1Parser']
 
 
 class _SimradDatagramParser(object):
@@ -85,7 +85,7 @@ class _SimradDatagramParser(object):
         else:
             raise TypeError('Expected a dict or str')
 
-        if type_ != self._id:
+        if type_ != self._id[:3]:
             raise ValueError('Expected data of type %s, not %s' %(self._id, type_))
 
         if version not in self._versions:
@@ -134,6 +134,10 @@ class SimradUnknownParser(_SimradDatagramParser):
 
     def __init__(self, dg_type):
         headers = {0: [('type', '4s'),
+                       ('low_date', 'L'),
+                       ('high_date', 'L')
+                      ],
+                    1: [('type', '4s'),
                        ('low_date', 'L'),
                        ('high_date', 'L')
                       ]
@@ -203,6 +207,11 @@ class SimradDepthParser(_SimradDatagramParser):
     '''
     def __init__(self):
         headers = {0: [('type', '4s'),
+                       ('low_date', 'L'),
+                       ('high_date', 'L'),
+                       ('transceiver_count', 'L')
+                      ],
+                    1: [('type', '4s'),
                        ('low_date', 'L'),
                        ('high_date', 'L'),
                        ('transceiver_count', 'L')
@@ -304,6 +313,11 @@ class SimradBottomParser(_SimradDatagramParser):
                      ('low_date', 'L'),
                      ('high_date', 'L'),
                      ('transceiver_count', 'L')
+                     ],
+                     1: [('type', '4s'),
+                     ('low_date', 'L'),
+                     ('high_date', 'L'),
+                     ('transceiver_count', 'L')
                      ]
                 }
         _SimradDatagramParser.__init__(self, "BOT", headers)
@@ -380,6 +394,10 @@ class SimradAnnotationParser(_SimradDatagramParser):
 
     def __init__(self):
         headers = {0: [('type', '4s'),
+                     ('low_date', 'L'),
+                     ('high_date', 'L')
+                     ],
+                     1: [('type', '4s'),
                      ('low_date', 'L'),
                      ('high_date', 'L')
                      ]
@@ -469,6 +487,10 @@ class SimradNMEAParser(_SimradDatagramParser):
 
     def __init__(self):
         headers = {0: [('type', '4s'),
+                             ('low_date', 'L'),
+                             ('high_date', 'L')
+                            ],
+                    1: [('type', '4s'),
                              ('low_date', 'L'),
                              ('high_date', 'L')
                             ]
@@ -579,7 +601,7 @@ class SimradMRUParser(_SimradDatagramParser):
                        ('roll', 'f'),
                        ('pitch', 'f'),
                        ('heading', 'f'),
-                      ]
+                      ],
                    }
 
         _SimradDatagramParser.__init__(self, "MRU", headers)
@@ -623,7 +645,141 @@ class SimradMRUParser(_SimradDatagramParser):
 
         return struct.pack(datagram_fmt, *datagram_contents)
 
+class SimradMRU1Parser(_SimradDatagramParser):
+    '''
+    EK80 MRU1 datagram contains the following keys:
+    Details here: http://www3.mbari.org/products/mbsystem/formatdoc/KongsbergKmall/EMdgmFormat_RevH/html/kmBinary.html
 
+    StructDatagramHeader    DgHeader; 
+    char                    StartId[4]
+    UINT16                  DgmLength
+    UINT16                  DgmVersion
+    UINT32                  UTCSeconds
+    UINT32                  UTCNanoSeconds
+    UINT32                  Status;       
+    double                  Latitude
+    double                  Longitude
+    float                   EllipsoidHeight
+    float                   Roll
+    float                   Pitch
+    float                   Heading
+    float                   Heave
+    float                   RollRate
+    float                   PitchRate
+    float                   YawRate
+    float                   NorthVelocity
+    float                   EastVelocity
+    float                   DownVelocity
+    float                   LatitudeError
+    float                   LongitudeError
+    float                   HeightError
+    float                   RollError
+    float                   PitchError
+    float                   HeadingError
+    float                   HeaveError 
+    float                   NorthAcceleration
+    float                   EastAcceleration
+    float                   DownAcceleration
+    UINT32                  DelayedHeaveUTCSeconds
+    UINT32                  DelayedHeaveUTCNanoseconds
+    float                   DelayedHeave
+
+    The following methods are defined:
+
+        from_string(str):    parse a raw EK800 MRU1 datagram
+                            (with leading/trailing datagram size stripped)
+
+        to_string():         Returns the datagram as a raw string (including leading/trailing size fields)
+                            ready for writing to disk
+    '''
+
+    def __init__(self):
+        headers = {0: [('type', '4s'), # dummy version here since MRU1 has to be version 1
+                       ('low_date', 'L'),
+                       ('high_date', 'L'),
+                      ],
+                    1: [
+                    ('type', '4s'),  #Somehow this is part of a header added before the datagram
+                    ('low_date', 'L'),  #Somehow this is part of a header added before the datagram
+                    ('high_date', 'L'),  #Somehow this is part of a header added before the datagram             
+                    ('start_id', '4s'),
+                    ('dgm_length', 'H'),
+                    ('dgm_version', 'H'),
+                    ('utc_seconds', 'I'),
+                    ('utc_nano_seconds', 'I'),
+                    ('status', 'I'),
+                    ('latitude', 'd'),
+                    ('longitude', 'd'),
+                    ('ellipsoid_height', 'f'),
+                    ('roll', 'f'),
+                    ('pitch', 'f'),
+                    ('heading', 'f'),
+                    ('heave', 'f'),
+                    ('roll_rate', 'f'),
+                    ('pitch_rate', 'f'),
+                    ('yaw_rate', 'f'),
+                    ('north_velocity', 'f'),
+                    ('east_velocity', 'f'),
+                    ('down_velocity', 'f'),
+                    ('latitude_error', 'f'),
+                    ('longitude_error', 'f'),
+                    ('height_error', 'f'),
+                    ('roll_error', 'f'),
+                    ('pitch_error', 'f'),
+                    ('heading_error', 'f'),
+                    ('heave_error', 'f'),
+                    ('north_acceleration', 'f'),
+                    ('east_acceleration', 'f'),
+                    ('down_acceleration', 'f'),
+                    ('delayed_heave_utc_seconds', 'H'),
+                    ('delayed_heave_utc_nanoseconds', 'H'),
+                    ('delayed_heave', 'f'),
+                    ],
+                   }
+
+        _SimradDatagramParser.__init__(self, "MRU1", headers)
+
+    def _unpack_contents(self, raw_string, bytes_read, version):
+        '''
+        Unpacks the data in raw_string into dictionary containing MRU1 data
+
+        :param raw_string:
+        :type raw_string: str
+
+        :returns: None
+        '''
+
+        header_fmt = self.header_fmt(version)
+        header_raw = raw_string[:self.header_size(version)]
+        # header_values = struct.unpack(self.header_fmt(version), raw_string[:self.header_size(version)])
+        header_values = struct.unpack(header_fmt,header_raw )
+        data = {}
+
+        for indx, field in enumerate(self.header_fields(version)):
+            data[field] = header_values[indx]
+            if isinstance(data[field], bytes):
+                data[field] = data[field].decode()
+
+        data['timestamp'] = nt_to_unix((data['low_date'], data['high_date']))
+        data['timestamp'] = data['timestamp'].replace(tzinfo=None)
+        data['bytes_read'] = bytes_read
+
+        return data
+
+    def _pack_contents(self, data, version):
+
+        datagram_fmt = self.header_fmt(version)
+        datagram_contents = []
+
+        if version == 0:
+
+            for field in self.header_fields(version):
+                if isinstance(data[field], str):
+                    data[field] = data[field].encode('latin_1')
+                datagram_contents.append(data[field])
+
+        return struct.pack(datagram_fmt, *datagram_contents)
+    
 class SimradIDXParser(_SimradDatagramParser):
     '''
     ER60/EK80 IDX datagram contains the following keys:
@@ -650,6 +806,16 @@ class SimradIDXParser(_SimradDatagramParser):
 
     def __init__(self):
         headers = {0: [('type', '4s'),
+                       ('low_date', 'L'),
+                       ('high_date', 'L'),
+                       #('dummy', 'L'),   # There are 4 extra bytes in this datagram
+                       ('ping_number', 'L'),
+                       ('distance', 'd'),
+                       ('latitude', 'd'),
+                       ('longitude', 'd'),
+                       ('file_offset', 'L'),
+                      ],
+                      1: [('type', '4s'),
                        ('low_date', 'L'),
                        ('high_date', 'L'),
                        #('dummy', 'L'),   # There are 4 extra bytes in this datagram
@@ -851,7 +1017,11 @@ class SimradXMLParser(_SimradDatagramParser):
         headers = {0: [('type', '4s'),
                         ('low_date', 'L'),
                         ('high_date', 'L')
-                            ]
+                            ],
+                    1: [('type', '4s'),
+                        ('low_date', 'L'),
+                        ('high_date', 'L')
+                        ]
                         }
 
         _SimradDatagramParser.__init__(self, "XML", headers)
